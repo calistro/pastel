@@ -1,160 +1,72 @@
 import 'dart:async';
-import 'dart:convert' show json;
+import 'dart:convert';
 
-import "package:http/http.dart" as http;
 import 'package:flutter/material.dart';
-import 'package:google_sign_in/google_sign_in.dart';
+import 'package:http/http.dart' as http;
 
-GoogleSignIn _googleSignIn = GoogleSignIn(
-  scopes: <String>[
-    'email',
-    'https://www.googleapis.com/auth/contacts.readonly',
-  ],
-  hostedDomain: 'bridge.ufsc.br'
-);
+Future<Post> fetchPost() async {
+  try {
+    final response =
+    await http.get(new Uri.http('150.162.18.196:43774', '/users'))
+              .timeout(new Duration(seconds: 5));
 
-void main() {
-  print('iniciando o pastel');
-  runApp(
-    MaterialApp(
-      title: 'Pastel',
-      theme: ThemeData(
-        primarySwatch: Colors.blueGrey,
-      ),
-      home: SignInDemo(),
-    ),
-  );
+    return Post.fromJson(json.decode(response.body));
+  }
+  catch(error) {
+    print(error.toString());
+  }
 }
 
-class SignInDemo extends StatefulWidget {
-  @override
-  State createState() => SignInDemoState();
+class Post {
+  final String name;
+  final String username;
+  final int password;
+
+  Post({this.name, this.username, this.password});
+
+  factory Post.fromJson(Map<String, dynamic> json) {
+    return Post(
+      name: json['name'],
+      username: json['username'],
+      password: json['password'],
+    );
+  }
 }
 
-class SignInDemoState extends State<SignInDemo> {
-  GoogleSignInAccount _currentUser;
-  String _contactText;
+void main() => runApp(MyApp(post: fetchPost()));
 
-  @override
-  void initState() {
-    super.initState();
-    _googleSignIn.onCurrentUserChanged.listen((GoogleSignInAccount account) {
-      setState(() {
-        _currentUser = account;
-      });
-      if (_currentUser != null) {
-        _handleGetContact();
-      }
-    });
-    _googleSignIn.signInSilently();
-  }
+class MyApp extends StatelessWidget {
+  final Future<Post> post;
 
-  Future<void> _handleGetContact() async {
-    setState(() {
-      _contactText = "Loading contact info...";
-    });
-    final http.Response response = await http.get(
-      'https://people.googleapis.com/v1/people/me/connections'
-          '?requestMask.includeField=person.names',
-      headers: await _currentUser.authHeaders,
-    );
-    if (response.statusCode != 200) {
-      setState(() {
-        _contactText = "People API gave a ${response.statusCode} "
-            "response. Check logs for details.";
-      });
-      print('People API ${response.statusCode} response: ${response.body}');
-      return;
-    }
-    final Map<String, dynamic> data = json.decode(response.body);
-    final String namedContact = _pickFirstNamedContact(data);
-    setState(() {
-      if (namedContact != null) {
-        _contactText = "I see you know $namedContact!";
-      } else {
-        _contactText = "No contacts to display.";
-      }
-    });
-  }
-
-  String _pickFirstNamedContact(Map<String, dynamic> data) {
-    final List<dynamic> connections = data['connections'];
-    final Map<String, dynamic> contact = connections?.firstWhere(
-          (dynamic contact) => contact['names'] != null,
-      orElse: () => null,
-    );
-    if (contact != null) {
-      final Map<String, dynamic> name = contact['names'].firstWhere(
-            (dynamic name) => name['displayName'] != null,
-        orElse: () => null,
-      );
-      if (name != null) {
-        return name['displayName'];
-      }
-    }
-    return null;
-  }
-
-  Future<void> _handleSignIn() async {
-    try {
-      await _googleSignIn.signIn();
-      print('eu sou fofo');
-    } catch (error) {
-      print(error);
-    }
-  }
-
-  Future<void> _handleSignOut() async {
-    _googleSignIn.disconnect();
-  }
-
-  Widget _buildBody() {
-    if (_currentUser != null) {
-      return Column(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: <Widget>[
-          ListTile(
-            leading: GoogleUserCircleAvatar(
-              identity: _currentUser,
-            ),
-            title: Text(_currentUser.displayName),
-            subtitle: Text(_currentUser.email),
-          ),
-          const Text("Signed in successfully."),
-          Text(_contactText),
-          RaisedButton(
-            child: const Text('SIGN OUT'),
-            onPressed: _handleSignOut,
-          ),
-          RaisedButton(
-            child: const Text('REFRESH'),
-            onPressed: _handleGetContact,
-          ),
-        ],
-      );
-    } else {
-      return Column(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: <Widget>[
-          const Text("You are not currently signed in."),
-          RaisedButton(
-            child: const Text('SIGN IN'),
-            onPressed: _handleSignIn,
-          ),
-        ],
-      );
-    }
-  }
+  MyApp({Key key, this.post}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return MaterialApp(
+      title: 'Fetch Data Example',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+      ),
+      home: Scaffold(
         appBar: AppBar(
-          title: const Text('Pastel'),
+          title: Text('Fetch Data Example'),
         ),
-        body: ConstrainedBox(
-          constraints: const BoxConstraints.expand(),
-          child: _buildBody(),
-        ));
+        body: Center(
+          child: FutureBuilder<Post>(
+            future: post,
+            builder: (context, snapshot) {
+              if (snapshot.hasData) {
+                return Text(snapshot.data.username);
+              } else if (snapshot.hasError) {
+                return Text("${snapshot.error}");
+              }
+
+              // By default, show a loading spinner
+              return CircularProgressIndicator();
+            },
+          ),
+        ),
+      ),
+    );
   }
 }
