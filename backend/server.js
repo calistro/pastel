@@ -19,5 +19,6 @@ app.use('/graphql', graphlHTTP({
 app.use(bodyParser.urlencoded({ extended: true }))
 app.use(bodyParser.json({ type: 'application/json' }))
 routes(app)
+gameRoute(app)
 app.listen(port)
 console.log('PASTEL2')
